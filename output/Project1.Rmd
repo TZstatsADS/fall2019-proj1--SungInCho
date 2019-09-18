@@ -1,0 +1,447 @@
+---
+title: "Is old music really getting older?"
+author: "Sung In Cho (sc4393)"
+date: "9/18/2019"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+![https://app.emaze.com/@ACQLOZFI#1](/Users/davidcho/Documents/GitHub/fall2019-proj1--SungInCho/figs/old vs new.jpg)
+
+
+\newline
+\newline
+\newline
+
+# Introduction
+
+The sound of music has changed as society has changed over the years, thus the change in the sound of music is really a reflection of our cultural evolution. Modern society has been mixed up by diverse cultures, unlike old days. This is reflected in the changing sound of the music. Then, what about the lyrics? Have words used in lyrics also have changed much over time? Since things have become more diverse, it feels like lyrics might have become more complicated. Let's find it out by analyzing the lyrics data.
+
+\newline
+\newline
+\newline
+
+- Index:
+    + Word Count: How number of words have changed over years
+        + Number of words in lyrics over decades
+        + Percentage of number of Genre over decades
+        + Number of words in lyrics per Genre
+    + Topic Modeling: What words are being used more often
+        + Word Cloud, Before 2000
+        + Word Cloud, After 2000
+        + Top 10 Most Frequent Words
+    + Readability: Harder to read?
+        + Readability over time
+        + Readability of each Genre
+    + Sentimental Analysis: Positive vs Negative
+        + Sentimental Analysis: Before 2000
+        + Sentimental Analysis: After 2000
+    + Summary
+\
+    
+    
+    
+```{r load libraries, warning=FALSE, message=FALSE, echo=FALSE}
+library(tm)
+library(data.table)
+library(tidyverse)
+library(tidytext)
+library(ggplot2)
+library(plotly)
+library(DT)
+library(scales)
+library(wordcloud2)
+library(gridExtra)
+library(ngram)
+library(quanteda)
+library(d3heatmap)
+library(sentimentr)
+library(devtools)
+library(knitr)
+library(shiny)
+```
+
+```{r load data, warning=FALSE, message=FALSE, echo=FALSE}
+# load lyrics data
+load('./processed_lyrics.RData') 
+# load artist information
+dt_artist <- fread('../data/artists.csv')
+```
+
+# 1. Word Count: How number of words have changed over years
+
+First, we will see whether number of words in lyrics has changed over time. If the number of words has increased over time, it would be reasonable to say that the songs actually have become more complicated.
+\
+
+
+
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+### Data handling for plot
+# Word counting in each Lyrics
+word.count <- sapply(strsplit(dt_lyrics$stemmedwords, " "), length)
+word.count <- word.count[-which(dt_lyrics$year<1970)]
+# Indexing
+index <- 1:length(word.count)
+# Assign time list of decades to years
+time_list <- dt_lyrics$year - dt_lyrics$year %% 10
+time_list <- time_list[-which(dt_lyrics$year<1970)] # remove years less than 1970 (Two mis-input data, One 1960s data)
+```
+
+
+### 1-1. Number of words in lyrics over decades
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+#### Boxplot of Number of Words Used
+year.word_count <- cbind(index,time_list, word.count)
+year.word_count <- as.data.frame(year.word_count)
+year.word_count$time_list <- as.factor(year.word_count$time_list)
+
+p.word.count <- year.word_count %>%
+   plot_ly(y= ~ word.count, color= ~time_list, type="box") %>%
+   layout(title = "Boxplot of Number of Words Used",
+          yaxis = list(title="# of Words"))
+p.word.count
+```
+
+We can see that the qauntiles of number of words have not changed much. However, the number of outliers increases as time flows. This can be just because there are more data in 2000s and 2010s. We need more analysis to find out the reason.
+\
+
+
+
+### 1-2. Percentage of number of Genre over decades
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+### percentage of genre per each time-lines
+year.word_count.genre <- cbind(year.word_count, genre=dt_lyrics$genre[-which(dt_lyrics$year<1970)])
+
+dat_count <- table(year.word_count.genre[,c("time_list","genre")]) %>%
+  apply(1, function(x) 100*x/sum(x)) %>%
+  melt(id.vars=time_list)
+
+p.per.genre <- ggplot(dat_count) + 
+    geom_bar(aes(x = time_list, y = value, fill = genre),
+             stat = "identity")+
+  labs(title = "Stacked Barplot of percentage of Genre",
+       y = list(title="percentage"), 
+       x = list(title=""))
+p.per.genre 
+```
+
+As we can see from the above plot, "Rock", "Pop", and "Jazz" were three dominant genre in 1970s and 1980s. But percentage of "Hip-Hop" begins to increase in 1990; so does other genres, and percentage of "Jazz" and "Rock" begin to decrease. Usually, "Hip-Hop" has more words in its lyrics than other music genre. Increase in percentage in "Hip-Hop" genre over time may be a reason for the above outliers.
+\
+
+
+
+### 1-3. Number of words in lyrics per Genre
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+##### Jitter plot of number of words for each genre & timeline
+p.word_count.genre <- ggplot(year.word_count.genre,
+                             aes(x=genre, y=word.count, 
+                                 colour=genre)) +
+  geom_jitter(width=0.25, alpha=0.5, ) +
+  facet_grid(.~time_list) +
+  theme(axis.text.x = element_text(angle = -90, hjust = 0.1, size=7)) +
+  labs(title = "Jitter plot of Number of words in lyrics for each Genre over decades",
+       y = "# of Words")
+p.word_count.genre 
+```
+
+This is a Dot plot showing number of each songs grouped by genre and time lines. As we expected, most of the songs that use more number of words are Hip-Hop and modern Rock music.
+\
+
+
+
+Songs that use more number of words clearly appeared more in recent years. However, as we saw in the above boxplot, quantiles haven't changed much, and it means number of words has not changed generally. So it's hard to say lyrics of modern songs have become more complicated based on this single analysis. We need to do more.
+\
+
+
+
+# 2. Topic Modeling : What words are being used more often
+
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+### Data handling for Word Cloud
+dt_lyrics$time.list <- paste(dt_lyrics$year - dt_lyrics$year %% 10, 
+                             "s",sep="")
+
+corpus <- VCorpus(VectorSource(dt_lyrics$stemmedwords))
+word_tibble <- tidy(corpus) %>%
+  select(text) %>%
+  mutate(id = row_number()) %>%
+  unnest_tokens(word, text)
+```
+
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+# All words in data.set
+word.freq <- as.data.frame(table(word_tibble$word))
+colnames(word.freq)[1] <- "word"
+word.freq <- word.freq[sort.list(word.freq$Freq, decreasing=T),]
+word.freq <- word.freq[1:300,]
+wordcloud2(data = word.freq, color = "random-light", backgroundColor = "grey")
+```
+
+Now let's see whether popular words for lyrics have changed over time. From now on, I will divide the time line into two pieces, 'Before 2000' and 'After 2000', representing old time and modern time respectively.
+\
+
+
+
+
+### 2-1. Word Cloud, Before 2000
+
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+## Words per time-line
+# Before 2000s
+b.2000s <-dt_lyrics[which(dt_lyrics$year<2000),]
+b.2000.corpus <- VCorpus(VectorSource(b.2000s$stemmedwords))
+b.2000.word_tibble <- tidy(b.2000.corpus) %>%
+  select(text) %>%
+  mutate(id = row_number(), genre=b.2000s$genre) %>%
+  unnest_tokens(word, text)
+
+b.2000s.freq <- as.data.frame(table(b.2000.word_tibble$word))
+colnames(b.2000s.freq)[1] <- "word"
+b.2000s.freq <- b.2000s.freq[sort.list(b.2000s.freq$Freq,
+                                       decreasing=T),]
+b.2000s.freq <- b.2000s.freq[1:300,]
+
+wc.b.2000 <-wordcloud2(data = b.2000s.freq, color="random-dark")
+```
+
+![](/Users/davidcho/Documents/GitHub/fall2019-proj1--SungInCho/figs/wc.b2000.png)
+\
+
+
+
+When we look at the word cloud before 2000, the most frequently used word is "love". And most of the words look very positive.
+\
+
+
+
+
+### 2-2. Word Cloud, After 2000
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+# After 2000s
+a.2000s <-dt_lyrics[which(dt_lyrics$year>=2000),]
+a.2000.corpus <- VCorpus(VectorSource(a.2000s$stemmedwords))
+a.2000.word_tibble <- tidy(a.2000.corpus) %>%
+  select(text) %>%
+  mutate(id = row_number(), genre=a.2000s$genre) %>%
+  unnest_tokens(word, text)
+
+a.2000s.freq <- as.data.frame(table(a.2000.word_tibble$word))
+colnames(a.2000s.freq)[1] <- "word"
+a.2000s.freq <- a.2000s.freq[sort.list(a.2000s.freq$Freq,
+                                       decreasing=T),]
+a.2000s.freq <- a.2000s.freq[1:300,]
+
+wc.a2000<- wordcloud2(data = a.2000s.freq, color="random-light",
+           backgroundColor = "black")
+```
+
+![](/Users/davidcho/Documents/GitHub/fall2019-proj1--SungInCho/figs/wc.a2000.png)
+\
+
+
+
+When we look at the word cloud after 2000, the most frequently used word is ALSO "love". But different thing from previous word cloud is that we can see more negative words, like "die", "tear", "wrong", "die", and even some swearing. And the word, "world" is being used much more often than before.
+\
+
+
+
+
+### 2-3. Top 10 Most Frequent Words
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+## Most Frequent Words Before and After 2000
+# Before
+kable(b.2000s.freq[1:10,], caption="Top 10 Most Frequent Word. Before 2000s")
+
+# After
+kable(a.2000s.freq[1:10,], caption="Top 10 Most Frequent Word. Aefore 2000s")
+```
+
+However, top 10 popular words are almost the same. Perhaps, it's because most songs are about love; both past and present.
+\
+
+From above analysis, we could find out that there has been a mere few changes in popular words and negative words began to show up more in songs after year 2000.
+\
+
+
+
+# 3. Readability: Harder to read?
+
+In this part, I wanted to know if the readability of lyrics has gotten worse over time. For a readability measure, I used "Bormuth.MC", "Coleman", "Dale.Chall", and "Flesch". Higher a readability score, easier to read in all measures.
+\
+
+
+
+
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+# Data is too huge to do Radability Analysis. So I just randomly sampled 30000 out of 125715 songs.  lyrics of same genre
+set.seed(0)
+s.dt_lyrics <- dt_lyrics[sample(1:nrow(dt_lyrics), size=30000),]
+```
+
+### 3-1. Readability over time
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+## Time
+r.time_lyrics <- s.dt_lyrics %>% 
+  group_by(time.list) %>%
+  mutate(time_lyrics = paste(lyrics, collapse=" "))
+r.time_lyrics<-r.time_lyrics[!duplicated(r.time_lyrics$time_lyrics), c("time.list","time_lyrics")]
+
+read.score2 <- r.time_lyrics$time_lyrics %>% 
+  textstat_readability(measure = c("Bormuth.MC", "Coleman", "Flesch",
+                                   "Dale.Chall"))
+row.names(read.score2) <- r.time_lyrics$time.list
+read.score2<-read.score2[,-1]
+read.score2 <- read.score2[c(1,2,4,5,3),]
+
+heat.time<-d3heatmap(read.score2, scale="column", color="Greens",
+          xaxis_font_size = 12,dendrogram = "none")
+```
+
+![](/Users/davidcho/Documents/GitHub/fall2019-proj1--SungInCho/figs/heat.time.png)
+\
+
+
+
+(Darker part represents the higher score)
+From above heatmap, we can clearly see the readability score of songs are decreasing over time. Which means, it's getting harder to read the lyrics. (Only "Coleman" measure shows different result. It's probably because they are using different formula.) The readability scores of lyrics written in 1970s are especially high. Songs in the old days were easier to read, and probably therefore easier to understand while listening. Then what would be the reason for this decline in readability score over time? To find out, I analyzed the readability score for each genre.
+\
+
+
+
+
+### 3-2. Readability of each Genre
+```{r  warning=FALSE, message=FALSE, echo=FALSE}
+# Genre
+r.genre_lyrics <- s.dt_lyrics %>% 
+  group_by(genre) %>%
+  mutate(genre_lyrics = paste(lyrics, collapse=" "))
+r.genre_lyrics<-r.genre_lyrics[!duplicated(r.genre_lyrics$genre_lyrics), c("genre","genre_lyrics")]
+r.genre_lyrics <-r.genre_lyrics[-which(r.genre_lyrics$genre=="Not Available"),] #remove "Not Available"
+
+read.score <- r.genre_lyrics$genre_lyrics %>% 
+  textstat_readability(measure = c("Bormuth.MC", "Coleman", "Flesch",
+                                   "Dale.Chall"))
+row.names(read.score) <- r.genre_lyrics$genre
+read.score<-read.score[,-1]
+
+head.genre<-d3heatmap(read.score, scale="column", color="Blues",
+          xaxis_font_size = 12, dendrogram = "none")
+```
+
+![](/Users/davidcho/Documents/GitHub/fall2019-proj1--SungInCho/figs/heat.genre.png)
+\
+
+
+
+
+When we did the analysis about percentage of genre over time, we could see the biggest changes in percentage of "Jazz", "Rock", and "Hip-Hop" music. "Jazz" and "Rock" show a moderate readability score. Hence, it may not have affected much on readability score over time. However, "Hip-Hop" shows a little low readability score. Hence, increase in "Hip-Hop" music might have caused the decrease in readability score of lyrics of modern songs. So far, it seems quite rational to say songs made in recent years actually use more complicated lyrics; more number of words and harder to read.
+\
+
+
+
+# 4. Sentimental Analysis: Positive vs Negative
+
+From above Topic analysis, we could see more negative words in the word cloud of lyrics written after year 2000. But, we do not have any numerical value about it. So I did sentimental analysis to get it. This sentimental analysis scores how much the word is positive or negative. By getting an average value for the words in the same time list, we would be able to compare two part of time lists; before 2000 and after 2000.
+
+### 4.1 Sentimental Analysis: Before 2000
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+# Before 2000
+b.2000.word_tibble<- b.2000.word_tibble[-which(b.2000.word_tibble$genre=="Not Available"),]
+
+b.2000.lyrics_sentiment <- b.2000.word_tibble %>%
+  inner_join(get_sentiments("bing")) %>%
+  count(genre,id, sentiment) %>%
+  spread(sentiment, n, fill = 0) %>%
+  mutate(sentiment = positive - negative)
+
+b.2000.lev <- levels(factor(b.2000.lyrics_sentiment$genre))
+for (i in 1:length(b.2000.lev)){
+  b.2000.lyrics_sentiment[
+    b.2000.lyrics_sentiment$genre==b.2000.lev[i],]$id <-
+    0:(nrow(b.2000.lyrics_sentiment[
+      b.2000.lyrics_sentiment$genre==b.2000.lev[i],])-1)
+}
+
+ggplot(b.2000.lyrics_sentiment, aes(id, sentiment, fill = genre)) +
+  geom_col(show.legend = FALSE) +
+  theme_minimal() +
+  facet_wrap(~genre, ncol = 5, scales = "free") +
+  theme(axis.text.x = element_text(angle = -90, hjust = 0.1))+
+  labs(title="Sentiment Analysis: Before 2000")
+
+b.2000.ave.sentiment <- b.2000.lyrics_sentiment %>% 
+  group_by(genre) %>% 
+  summarise(mean(sentiment))
+
+kable(rbind(b.2000.ave.sentiment,c("Mean", mean(b.2000.ave.sentiment$`mean(sentiment)`))), caption="Ave. Sentiment for Each Genre. Before 2000")
+```
+
+In the Sentimental Analysis of lyrics written before year 2000, "Hip-Hop" and "Metal" are two genres that show the most negative sentiment, and "Other" and "Jazz" are two genres that show the most positive sentiment. And other genres show sentiment score between (-3, 3). And total average of the sentiment score is -1.70, which is little negative.
+
+### 4.2 Sentimental Analysis: After 2000
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+# After 2000s
+a.2000.word_tibble<- a.2000.word_tibble[-which(a.2000.word_tibble$genre=="Not Available"),]
+
+a.2000.lyrics_sentiment <- a.2000.word_tibble %>%
+  inner_join(get_sentiments("bing")) %>%
+  count(genre,id, sentiment) %>%
+  spread(sentiment, n, fill = 0) %>%
+  mutate(sentiment = positive - negative)
+
+a.2000.lev <- levels(factor(a.2000.lyrics_sentiment$genre))
+for (i in 1:length(a.2000.lev)){
+  a.2000.lyrics_sentiment[
+    a.2000.lyrics_sentiment$genre==a.2000.lev[i],]$id <-
+    0:(nrow(a.2000.lyrics_sentiment[
+      a.2000.lyrics_sentiment$genre==a.2000.lev[i],])-1)
+}
+
+ggplot(a.2000.lyrics_sentiment, aes(id, sentiment, fill = genre)) +
+  geom_col(show.legend = FALSE) +
+  theme_minimal() +
+  facet_wrap(~genre, ncol = 6, scales = "free" )+
+  theme(axis.text.x = element_text(angle = -90, hjust = 0.1))+
+  labs(title="Sentiment Analysis: After 2000")
+
+a.2000.ave.sentiment <- a.2000.lyrics_sentiment %>% 
+  group_by(genre) %>% 
+  summarise(mean(sentiment))
+
+kable(rbind(a.2000.ave.sentiment,c("Mean", mean(a.2000.ave.sentiment$`mean(sentiment)`))), caption="Ave. Sentiment for Each Genre. After 2000")
+```
+
+In the Sentimental Analysis of lyrics written after year 2000, "Hip-Hop" and "Metal" are two genres that show the most negative sentiment, and "Jazz" is the only genre that shows the positive sentiment. Overall, all genres show very negative sentiment. Even "Other", which gave one of the highest sentiment score in previous analysis, also shows very negative sentiment. Ofcourse, total average of the sentiment score got much lower, -3.59. Therefore, with this analysis, we could get more clear evidence that the lyrics written after year 2000 use more negative words. I think it definitely can make some group of people feel harder to understand while listening.
+\
+
+
+
+# 5. Summary
+
+![https://www.ebaumsworld.com/pictures/funny-memes-breaking-down-rappers-lyrics/84882174/](/Users/davidcho/Documents/GitHub/fall2019-proj1--SungInCho/figs/nomakesense.jpeg)
+
+
+\newline
+\newline
+\newline
+
+
+After doing Exploratory Data Analysis with lyrics data, I could get following results.
+
++ Generally, number of words being used in lyrics has not changed over years. But, number of songs that use more words in its lyrics began to increase dramatically in 2000. And it is probably due to the increase of "Hip-Hop" music in modern years.
+
++ Most popular words in lyrics haven't changed much over years as majority of the songs are about "LOVE". More negative words showed up in word cloud of "After 2000". 
+
++ The lyrics are getting harder and harder to read. It's probably because number of "Hip-Hop" music, which shows low readability score, increased dramatically over time.
+
++ The lyrics written after year 2000 are using much more negative words than the lyrics written before year 2000. 
+\
+
+Hence, the lyrics of the songs are actually getting complicated and harder to understand, especially certain group of people may feel even harder.
+
+

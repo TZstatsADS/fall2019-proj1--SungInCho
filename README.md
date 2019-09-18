@@ -5,14 +5,13 @@
 <img src="figs/title1.jpeg" width="500">
 
 ### [Project Description](doc/)
-This is the first and only *individual* (as opposed to *team*) this semester. 
 
 Term: Fall 2019
 
-+ Projec title: Lorem ipsum dolor sit amet
-+ This project is conducted by [your name]
++ Project title: Is old music really getting older?
++ This project is conducted by Sung In Cho (sc4393)
 
-+ Project summary: [a short summary] Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
++ Project summary: The sound of music has changed as society has changed over the years, thus the change in the sound of music is really a reflection of our cultural evolution. Modern society has been mixed up by diverse cultures, unlike old days. This is reflected in the changing sound of the music. Then, what about the lyrics? Have words used in lyrics also have changed much over time? Since things have become more diverse, it feels like lyrics might have become more complicated. Let's find it out by analyzing the lyrics data.
 
 Following [suggestions](http://nicercode.github.io/blog/2013-04-05-projects/) by [RICH FITZJOHN](http://nicercode.github.io/about/#Team) (@richfitz). This folder is orgarnized as follows.
 
