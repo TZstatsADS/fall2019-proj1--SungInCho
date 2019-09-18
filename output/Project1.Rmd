@@ -11,7 +11,7 @@ editor_options:
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-![https://app.emaze.com/@ACQLOZFI#1](/Users/davidcho/Documents/GitHub/fall2019-proj1--SungInCho/figs/old vs new.jpg)
+![https://app.emaze.com/@ACQLOZFI#1](/Users/davidcho/Documents/GitHub/fall2019-proj1--SungInCho/figs/old vs new.jpg){width=550px}
 
 
 \newline
@@ -423,7 +423,7 @@ In the Sentimental Analysis of lyrics written after year 2000, "Hip-Hop" and "Me
 
 # 5. Summary
 
-![https://www.ebaumsworld.com/pictures/funny-memes-breaking-down-rappers-lyrics/84882174/](/Users/davidcho/Documents/GitHub/fall2019-proj1--SungInCho/figs/nomakesense.jpeg)
+![https://www.ebaumsworld.com/pictures/funny-memes-breaking-down-rappers-lyrics/84882174/](/Users/davidcho/Documents/GitHub/fall2019-proj1--SungInCho/figs/nomakesense.jpeg){width=250px}
 
 
 \newline
