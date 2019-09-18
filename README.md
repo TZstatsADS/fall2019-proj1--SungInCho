@@ -15,7 +15,8 @@ Term: Fall 2019
 
 + Project summary: The sound of music has changed as society has changed over the years, thus the change in the sound of music is really a reflection of our cultural evolution. Modern society has been mixed up by diverse cultures, unlike old days. This is reflected in the changing sound of the music. Then, what about the lyrics? Have words used in lyrics also have changed much over time? Since things have become more diverse, it feels like lyrics might have become more complicated. Let's find it out by analyzing the lyrics data.
 
-### [Project Report](output/Project1.html)
+### [Project Report](http://rpubs.com/David_Cho/529805) (direct link)
+### [Project Report](output/Project1.html) (file link)
 
 ### [Project Code](output/Project1.Rmd)
 
